@@ -921,6 +921,28 @@ func TestHTTPEndpoint(t *testing.T) {
 	}
 }
 
+func TestIncludeSystemMemoryMetric(t *testing.T) {
+	for _, inc := range []bool{false, true} {
+		r := prometheus.NewRegistry()
+		prometheus.DefaultGatherer = r
+		prometheus.DefaultRegisterer = r
+
+		ts := httptest.NewServer(promhttp.Handler())
+		e, _ := NewRedisExporter(os.Getenv("TEST_REDIS_URI"), Options{Namespace: "test", IncludeMetricTotalSysMemory: inc})
+
+		prometheus.Register(e)
+
+		body := downloadURL(t, ts.URL+"/metrics")
+		if inc && !strings.Contains(body, "total_system_memory_bytes") {
+			t.Errorf("want metrics to include total_system_memory_bytes, have:\n%s", body)
+		} else if !inc && strings.Contains(body, "total_system_memory_bytes") {
+			t.Errorf("did NOT want metrics to include total_system_memory_bytes, have:\n%s", body)
+		}
+
+		ts.Close()
+	}
+}
+
 func TestHTTPScrapeEndpoint(t *testing.T) {
 	r := prometheus.NewRegistry()
 	prometheus.DefaultGatherer = r
