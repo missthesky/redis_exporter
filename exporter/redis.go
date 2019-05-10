@@ -37,7 +37,7 @@ type Exporter struct {
 	singleKeys []dbKeyPair
 
 	totalScrapes              prometheus.Counter
-	targetScrapeDuration      prometheus.Summary
+	scrapeDuration            prometheus.Summary
 	targetScrapeRequestErrors prometheus.Counter
 
 	metricDescriptions map[string]*prometheus.Desc
@@ -47,12 +47,12 @@ type Exporter struct {
 }
 
 type Options struct {
-	Namespace                   string
-	ConfigCommandName           string
-	CheckSingleKeys             string
-	CheckKeys                   string
-	IncludeMetricTotalSysMemory bool
-	SkipTLSVerification         bool
+	Namespace           string
+	ConfigCommandName   string
+	CheckSingleKeys     string
+	CheckKeys           string
+	InclSystemMetrics   bool
+	SkipTLSVerification bool
 }
 
 var (
@@ -102,12 +102,9 @@ var (
 		"aof_last_write_status":        "aof_last_write_status",
 
 		// # Stats
-		"instantaneous_ops_per_sec": "instantaneous_ops_per_sec",
-		"instantaneous_input_kbps":  "instantaneous_input_kbps",
-		"instantaneous_output_kbps": "instantaneous_output_kbps",
-		"pubsub_channels":           "pubsub_channels",
-		"pubsub_patterns":           "pubsub_patterns",
-		"latest_fork_usec":          "latest_fork_usec",
+		"pubsub_channels":  "pubsub_channels",
+		"pubsub_patterns":  "pubsub_patterns",
+		"latest_fork_usec": "latest_fork_usec",
 
 		// # Replication
 		"loading":                    "loading_dump_file",
@@ -154,10 +151,10 @@ var (
 		"keyspace_hits":   "keyspace_hits_total",
 		"keyspace_misses": "keyspace_misses_total",
 
-		"used_cpu_sys":           "used_cpu_sys_seconds_total",
-		"used_cpu_user":          "used_cpu_user_seconds_total",
-		"used_cpu_sys_children":  "used_cpu_sys_children_seconds_total",
-		"used_cpu_user_children": "used_cpu_user_children_seconds_total",
+		"used_cpu_sys":           "cpu_sys_seconds_total",
+		"used_cpu_user":          "cpu_user_seconds_total",
+		"used_cpu_sys_children":  "cpu_sys_children_seconds_total",
+		"used_cpu_user_children": "cpu_user_children_seconds_total",
 	}
 
 	instanceInfoFields = map[string]bool{"role": true, "redis_version": true, "redis_build_id": true, "redis_mode": true, "os": true}
@@ -172,9 +169,6 @@ func (e *Exporter) ScrapeHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	start := time.Now()
-
-	// todo: this needs a test
 	checkKeys := r.URL.Query().Get("check-keys")
 	checkSingleKey := r.URL.Query().Get("check-single-keys")
 
@@ -190,13 +184,8 @@ func (e *Exporter) ScrapeHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	registry := prometheus.NewRegistry()
 	registry.MustRegister(exp)
-	h := promhttp.HandlerFor(registry, promhttp.HandlerOpts{})
 
-	h.ServeHTTP(w, r)
-
-	duration := time.Since(start).Seconds()
-	e.targetScrapeDuration.Observe(duration)
-	log.Debugf("Scrape of target '%s' took %f seconds", target, duration)
+	promhttp.HandlerFor(registry, promhttp.HandlerOpts{}).ServeHTTP(w, r)
 }
 
 // splitKeyArgs splits a command-line supplied argument into a slice of dbKeyPairs.
@@ -244,20 +233,16 @@ func NewRedisExporter(redisURI string, opts Options) (*Exporter, error) {
 			Help:      "Current total redis scrapes.",
 		}),
 
-		targetScrapeDuration: prometheus.NewSummary(
-			prometheus.SummaryOpts{
-				Namespace: opts.Namespace,
-				Name:      "target_scrape_collection_duration_seconds",
-				Help:      "Duration of collections by the SNMP exporter",
-			},
-		),
-		targetScrapeRequestErrors: prometheus.NewCounter(
-			prometheus.CounterOpts{
-				Namespace: opts.Namespace,
-				Name:      "target_scrape_request_errors_total",
-				Help:      "Errors in requests to the SNMP exporter",
-			},
-		),
+		scrapeDuration: prometheus.NewSummary(prometheus.SummaryOpts{
+			Name: "exporter_scrape_duration_seconds",
+			Help: "Duration of scrape by the exporter",
+		}),
+
+		targetScrapeRequestErrors: prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: opts.Namespace,
+			Name:      "target_scrape_request_errors_total",
+			Help:      "Errors in requests to the exporter",
+		}),
 	}
 
 	if e.options.ConfigCommandName == "" {
@@ -276,39 +261,40 @@ func NewRedisExporter(redisURI string, opts Options) (*Exporter, error) {
 	}
 	log.Debugf("singleKeys: %#v", e.singleKeys)
 
-	if opts.IncludeMetricTotalSysMemory {
+	if opts.InclSystemMetrics {
 		metricMapGauges["total_system_memory"] = "total_system_memory_bytes"
 	}
 
 	e.metricDescriptions = map[string]*prometheus.Desc{}
-	e.metricDescriptions["up"] = newMetricDescr(opts.Namespace, "up", "Information about the Redis instance", nil)
-	e.metricDescriptions["instance_info"] = newMetricDescr(opts.Namespace, "instance_info", "Information about the Redis instance", []string{"role", "redis_version", "redis_build_id", "redis_mode", "os"})
-	e.metricDescriptions["last_scrape_duration"] = newMetricDescr(opts.Namespace, "exporter_last_scrape_duration_seconds", "The last scrape duration", nil)
-	e.metricDescriptions["scrape_error"] = newMetricDescr(opts.Namespace, "exporter_last_scrape_error", "The last scrape error status.", []string{"err"})
 
-	e.metricDescriptions["script_values"] = newMetricDescr(opts.Namespace, "script_value", "Values returned by the collect script", []string{"key"})
-	e.metricDescriptions["key_values"] = newMetricDescr(opts.Namespace, "key_value", `The value of "key"`, []string{"db", "key"})
-	e.metricDescriptions["key_sizes"] = newMetricDescr(opts.Namespace, "key_size", `The length or size of "key"`, []string{"db", "key"})
-
-	e.metricDescriptions["commands_total"] = newMetricDescr(opts.Namespace, "commands_total", `Total number of calls per command`, []string{"cmd"})
-	e.metricDescriptions["commands_duration_seconds_total"] = newMetricDescr(opts.Namespace, "commands_duration_seconds_total", `Total amount of time in seconds spent per command`, []string{"cmd"})
-	e.metricDescriptions["slowlog_length"] = newMetricDescr(opts.Namespace, "slowlog_length", `Total slowlog`, nil)
-	e.metricDescriptions["slowlog_last_id"] = newMetricDescr(opts.Namespace, "slowlog_last_id", `Last id of slowlog`, nil)
-	e.metricDescriptions["last_slow_execution_duration_seconds"] = newMetricDescr(opts.Namespace, "last_slow_execution_duration_seconds", `The amount of time needed for last slow execution, in seconds`, nil)
-
-	e.metricDescriptions["latency_spike_last"] = newMetricDescr(opts.Namespace, "latency_spike_last", `When the latency spike last occurred`, []string{"event_name"})
-	e.metricDescriptions["latency_spike_seconds"] = newMetricDescr(opts.Namespace, "latency_spike_seconds", `Length of the last latency spike in seconds`, []string{"event_name"})
-
-	e.metricDescriptions["slave_info"] = newMetricDescr(opts.Namespace, "slave_info", "Information about the Redis slave", []string{"master_host", "master_port", "read_only"})
-
-	e.metricDescriptions["start_time_seconds"] = newMetricDescr(opts.Namespace, "start_time_seconds", "Start time of the Redis instance since unix epoch in seconds.", nil)
-	e.metricDescriptions["master_link_up"] = newMetricDescr(opts.Namespace, "master_link_up", "Master link status on Redis slave", nil)
-	e.metricDescriptions["connected_slave_offset"] = newMetricDescr(opts.Namespace, "connected_slave_offset", "Offset of connected slave", []string{"slave_ip", "slave_port", "slave_state"})
-	e.metricDescriptions["connected_slave_lag_seconds"] = newMetricDescr(opts.Namespace, "connected_slave_lag_seconds", "Lag of connected slave", []string{"slave_ip", "slave_port", "slave_state"})
-
-	e.metricDescriptions["db_keys"] = newMetricDescr(opts.Namespace, "db_keys", "Total number of keys by DB", []string{"db"})
-	e.metricDescriptions["db_keys_expiring"] = newMetricDescr(opts.Namespace, "db_keys_expiring", "Total number of expiring keys by DB", []string{"db"})
-	e.metricDescriptions["db_avg_ttl_seconds"] = newMetricDescr(opts.Namespace, "db_avg_ttl_seconds", "Avg TTL in seconds", []string{"db"})
+	for k, desc := range map[string]struct {
+		txt  string
+		lbls []string
+	}{
+		"up":                                   {txt: "Information about the Redis instance"},
+		"instance_info":                        {txt: "Information about the Redis instance", lbls: []string{"role", "redis_version", "redis_build_id", "redis_mode", "os"}},
+		"exporter_last_scrape_error":           {txt: "The last scrape error status.", lbls: []string{"err"}},
+		"script_values":                        {txt: "Values returned by the collect script", lbls: []string{"key"}},
+		"key_value":                            {txt: `The value of "key"`, lbls: []string{"db", "key"}},
+		"key_size":                             {txt: `The length or size of "key"`, lbls: []string{"db", "key"}},
+		"db_keys":                              {txt: "Total number of keys by DB", lbls: []string{"db"}},
+		"db_keys_expiring":                     {txt: "Total number of expiring keys by DB", lbls: []string{"db"}},
+		"db_avg_ttl_seconds":                   {txt: "Avg TTL in seconds", lbls: []string{"db"}},
+		"latency_spike_last":                   {txt: `When the latency spike last occurred`, lbls: []string{"event_name"}},
+		"latency_spike_timestamp_seconds":      {txt: `Length of the last latency spike in seconds`, lbls: []string{"event_name"}},
+		"commands_total":                       {txt: `Total number of calls per command`, lbls: []string{"cmd"}},
+		"commands_duration_seconds_total":      {txt: `Total amount of time in seconds spent per command`, lbls: []string{"cmd"}},
+		"slowlog_length":                       {txt: `Total slowlog`},
+		"slowlog_last_id":                      {txt: `Last id of slowlog`},
+		"last_slow_execution_duration_seconds": {txt: `The amount of time needed for last slow execution, in seconds`},
+		"start_time_seconds":                   {txt: "Start time of the Redis instance since unix epoch in seconds."},
+		"master_link_up":                       {txt: "Master link status on Redis slave"},
+		"connected_slave_offset":               {txt: "Offset of connected slave", lbls: []string{"slave_ip", "slave_port", "slave_state"}},
+		"connected_slave_lag_seconds":          {txt: "Lag of connected slave", lbls: []string{"slave_ip", "slave_port", "slave_state"}},
+		"slave_info":                           {txt: "Information about the Redis slave", lbls: []string{"master_host", "master_port", "read_only"}},
+	} {
+		e.metricDescriptions[k] = newMetricDescr(opts.Namespace, k, desc.txt, desc.lbls)
+	}
 
 	return &e, nil
 }
@@ -328,7 +314,7 @@ func (e *Exporter) Describe(ch chan<- *prometheus.Desc) {
 	}
 
 	ch <- e.totalScrapes.Desc()
-	ch <- e.targetScrapeDuration.Desc()
+	ch <- e.scrapeDuration.Desc()
 	ch <- e.targetScrapeRequestErrors.Desc()
 }
 
@@ -343,18 +329,18 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 		var up float64 = 1
 		if err := e.scrapeRedisHost(ch); err != nil {
 			up = 0
-			e.registerGaugeValue(ch, "scrape_error", 1.0, fmt.Sprintf("%s", err))
+			e.registerConstMetricGauge(ch, "exporter_last_scrape_error", 1.0, fmt.Sprintf("%s", err))
 		} else {
-			e.registerGaugeValue(ch, "scrape_error", 0, "")
+			e.registerConstMetricGauge(ch, "exporter_last_scrape_error", 0, "")
 		}
 
-		e.registerGaugeValue(ch, "up", up)
-		e.registerGaugeValue(ch, "last_scrape_duration", float64(time.Now().UnixNano()-start)/1000000000)
+		e.registerConstMetricGauge(ch, "up", up)
+		e.registerConstMetricGauge(ch, "exporter_last_scrape_duration_seconds", float64(time.Now().UnixNano()-start)/1000000000)
 
 	}
 
 	ch <- e.totalScrapes
-	ch <- e.targetScrapeDuration
+	ch <- e.scrapeDuration
 	ch <- e.targetScrapeRequestErrors
 }
 
@@ -489,17 +475,17 @@ func (e *Exporter) extractConfigMetrics(ch chan<- prometheus.Metric, config []st
 		}
 
 		if val, err := strconv.ParseFloat(strVal, 64); err == nil {
-			e.registerGaugeValue(ch, fmt.Sprintf("config_%s", config[pos*2]), val)
+			e.registerConstMetricGauge(ch, fmt.Sprintf("config_%s", config[pos*2]), val)
 		}
 	}
 	return
 }
 
-func (e *Exporter) registerGaugeValue(ch chan<- prometheus.Metric, metric string, val float64, labels ...string) {
-	e.registerMetricValue(ch, metric, val, prometheus.GaugeValue, labels...)
+func (e *Exporter) registerConstMetricGauge(ch chan<- prometheus.Metric, metric string, val float64, labels ...string) {
+	e.registerConstMetric(ch, metric, val, prometheus.GaugeValue, labels...)
 }
 
-func (e *Exporter) registerMetricValue(ch chan<- prometheus.Metric, metric string, val float64, valType prometheus.ValueType, labelValues ...string) {
+func (e *Exporter) registerConstMetric(ch chan<- prometheus.Metric, metric string, val float64, valType prometheus.ValueType, labelValues ...string) {
 	descr := e.metricDescriptions[metric]
 	if descr == nil {
 		descr = newMetricDescr(e.options.Namespace, metric, metric+" metric", nil)
@@ -519,7 +505,7 @@ func (e *Exporter) extractTile38Metrics(ch chan<- prometheus.Metric, info []stri
 			continue
 		}
 
-		e.parseAndRegisterMetric(ch, fieldKey, fieldValue)
+		e.parseAndRegisterConstMetric(ch, fieldKey, fieldValue)
 	}
 }
 
@@ -551,31 +537,31 @@ func (e *Exporter) handleMetricsCommandStats(ch chan<- prometheus.Metric, fieldK
 	}
 
 	cmd := splitKey[1]
-	e.registerMetricValue(ch, "commands_total", calls, prometheus.CounterValue, cmd)
-	e.registerMetricValue(ch, "commands_duration_seconds_total", usecTotal/1e6, prometheus.CounterValue, cmd)
+	e.registerConstMetric(ch, "commands_total", calls, prometheus.CounterValue, cmd)
+	e.registerConstMetric(ch, "commands_duration_seconds_total", usecTotal/1e6, prometheus.CounterValue, cmd)
 }
 
 func (e *Exporter) handleMetricsReplication(ch chan<- prometheus.Metric, fieldKey string, fieldValue string) bool {
 	// only slaves have this field
 	if fieldKey == "master_link_status" {
 		if fieldValue == "up" {
-			e.registerGaugeValue(ch, "master_link_up", 1)
+			e.registerConstMetricGauge(ch, "master_link_up", 1)
 		} else {
-			e.registerGaugeValue(ch, "master_link_up", 0)
+			e.registerConstMetricGauge(ch, "master_link_up", 0)
 		}
 		return true
 	}
 
 	// not a slave, try extracting master metrics
 	if slaveOffset, slaveIP, slavePort, slaveState, slaveLag, ok := parseConnectedSlaveString(fieldKey, fieldValue); ok {
-		e.registerGaugeValue(ch,
+		e.registerConstMetricGauge(ch,
 			"connected_slave_offset",
 			slaveOffset,
 			slaveIP, slavePort, slaveState,
 		)
 
 		if slaveLag > -1 {
-			e.registerGaugeValue(ch,
+			e.registerConstMetricGauge(ch,
 				"connected_slave_lag_seconds",
 				slaveLag,
 				slaveIP, slavePort, slaveState,
@@ -590,7 +576,7 @@ func (e *Exporter) handleMetricsReplication(ch chan<- prometheus.Metric, fieldKe
 func (e *Exporter) handleMetricsServer(ch chan<- prometheus.Metric, fieldKey string, fieldValue string) {
 	if fieldKey == "uptime_in_seconds" {
 		if uptime, err := strconv.ParseFloat(fieldValue, 64); err == nil {
-			e.registerGaugeValue(ch, "start_time_seconds", float64(time.Now().Unix())-uptime)
+			e.registerConstMetricGauge(ch, "start_time_seconds", float64(time.Now().Unix())-uptime)
 		}
 	}
 }
@@ -645,11 +631,11 @@ func (e *Exporter) extractInfoMetrics(ch chan<- prometheus.Metric, info string, 
 			if keysTotal, keysEx, avgTTL, ok := parseDBKeyspaceString(fieldKey, fieldValue); ok {
 				dbName := fieldKey
 
-				e.registerGaugeValue(ch, "db_keys", keysTotal, dbName)
-				e.registerGaugeValue(ch, "db_keys_expiring", keysEx, dbName)
+				e.registerConstMetricGauge(ch, "db_keys", keysTotal, dbName)
+				e.registerConstMetricGauge(ch, "db_keys_expiring", keysEx, dbName)
 
 				if avgTTL > -1 {
-					e.registerGaugeValue(ch, "db_avg_ttl_seconds", avgTTL, dbName)
+					e.registerConstMetricGauge(ch, "db_avg_ttl_seconds", avgTTL, dbName)
 				}
 				handledDBs[dbName] = true
 				continue
@@ -660,18 +646,18 @@ func (e *Exporter) extractInfoMetrics(ch chan<- prometheus.Metric, info string, 
 			continue
 		}
 
-		e.parseAndRegisterMetric(ch, fieldKey, fieldValue)
+		e.parseAndRegisterConstMetric(ch, fieldKey, fieldValue)
 	}
 
 	for dbIndex := 0; dbIndex < dbCount; dbIndex++ {
 		dbName := "db" + strconv.Itoa(dbIndex)
 		if _, exists := handledDBs[dbName]; !exists {
-			e.registerGaugeValue(ch, "db_keys", 0, dbName)
-			e.registerGaugeValue(ch, "db_keys_expiring", 0, dbName)
+			e.registerConstMetricGauge(ch, "db_keys", 0, dbName)
+			e.registerConstMetricGauge(ch, "db_keys_expiring", 0, dbName)
 		}
 	}
 
-	e.registerGaugeValue(ch, "instance_info", 1,
+	e.registerConstMetricGauge(ch, "instance_info", 1,
 		instanceInfo["role"],
 		instanceInfo["redis_version"],
 		instanceInfo["redis_build_id"],
@@ -679,7 +665,7 @@ func (e *Exporter) extractInfoMetrics(ch chan<- prometheus.Metric, info string, 
 		instanceInfo["os"])
 
 	if instanceInfo["role"] == "slave" {
-		e.registerGaugeValue(ch, "slave_info", 1,
+		e.registerConstMetricGauge(ch, "slave_info", 1,
 			slaveInfo["master_host"],
 			slaveInfo["master_port"],
 			slaveInfo["slave_read_only"])
@@ -705,7 +691,7 @@ func (e *Exporter) extractClusterInfoMetrics(ch chan<- prometheus.Metric, info s
 			continue
 		}
 
-		e.parseAndRegisterMetric(ch, fieldKey, fieldValue)
+		e.parseAndRegisterConstMetric(ch, fieldKey, fieldValue)
 	}
 
 	return nil
@@ -741,11 +727,11 @@ func (e *Exporter) extractCheckKeyMetrics(ch chan<- prometheus.Metric, c redis.C
 			continue
 		}
 		dbLabel := "db" + k.db
-		e.registerGaugeValue(ch, "key_sizes", info.size, dbLabel, k.key)
+		e.registerConstMetricGauge(ch, "key_size", info.size, dbLabel, k.key)
 
 		// Only record value metric if value is float-y
 		if val, err := redis.Float64(c.Do("GET", k.key)); err == nil {
-			e.registerGaugeValue(ch, "key_values", val, dbLabel, k.key)
+			e.registerConstMetricGauge(ch, "key_value", val, dbLabel, k.key)
 		}
 	}
 }
@@ -765,7 +751,7 @@ func (e *Exporter) extractLuaScriptMetrics(ch chan<- prometheus.Metric, c redis.
 	if kv != nil {
 		for key, stringVal := range kv {
 			if val, err := strconv.ParseFloat(stringVal, 64); err == nil {
-				e.registerGaugeValue(ch, "script_values", val, key)
+				e.registerConstMetricGauge(ch, "script_values", val, key)
 			}
 		}
 	}
@@ -773,7 +759,7 @@ func (e *Exporter) extractLuaScriptMetrics(ch chan<- prometheus.Metric, c redis.
 
 func (e *Exporter) extractSlowLogMetrics(ch chan<- prometheus.Metric, c redis.Conn) {
 	if reply, err := c.Do("SLOWLOG", "LEN"); err == nil {
-		e.registerGaugeValue(ch, "slowlog_length", float64(reply.(int64)))
+		e.registerConstMetricGauge(ch, "slowlog_length", float64(reply.(int64)))
 	}
 
 	if values, err := redis.Values(c.Do("SLOWLOG", "GET", "1")); err == nil {
@@ -789,12 +775,12 @@ func (e *Exporter) extractSlowLogMetrics(ch chan<- prometheus.Metric, c redis.Co
 			}
 		}
 
-		e.registerGaugeValue(ch, "slowlog_last_id", float64(slowlogLastID))
-		e.registerGaugeValue(ch, "last_slow_execution_duration_seconds", lastSlowExecutionDurationSeconds)
+		e.registerConstMetricGauge(ch, "slowlog_last_id", float64(slowlogLastID))
+		e.registerConstMetricGauge(ch, "last_slow_execution_duration_seconds", lastSlowExecutionDurationSeconds)
 	}
 }
 
-func (e *Exporter) parseAndRegisterMetric(ch chan<- prometheus.Metric, fieldKey, fieldValue string) error {
+func (e *Exporter) parseAndRegisterConstMetric(ch chan<- prometheus.Metric, fieldKey, fieldValue string) error {
 	orgMetricName := sanitizeMetricName(fieldKey)
 	metricName := orgMetricName
 	if newName, ok := metricMapGauges[metricName]; ok {
@@ -828,7 +814,14 @@ func (e *Exporter) parseAndRegisterMetric(ch chan<- prometheus.Metric, fieldKey,
 	if metricMapCounters[orgMetricName] != "" {
 		t = prometheus.CounterValue
 	}
-	e.registerMetricValue(ch, metricName, val, t)
+
+	switch metricName {
+	case "latest_fork_usec":
+		metricName = "latest_fork_seconds"
+		val = val / 1e6
+	}
+
+	e.registerConstMetric(ch, metricName, val, t)
 
 	return nil
 }
@@ -1034,8 +1027,8 @@ func (e *Exporter) scrapeRedisHost(ch chan<- prometheus.Metric) error {
 			var spikeLast, spikeDuration, max int64
 			if _, err := redis.Scan(latencyResult, &eventName, &spikeLast, &spikeDuration, &max); err == nil {
 				spikeDuration = spikeDuration / 1e6
-				e.registerGaugeValue(ch, "latency_spike_last", float64(spikeLast), eventName)
-				e.registerGaugeValue(ch, "latency_spike_seconds", float64(spikeDuration), eventName)
+				e.registerConstMetricGauge(ch, "latency_spike_last", float64(spikeLast), eventName)
+				e.registerConstMetricGauge(ch, "latency_spike_timestamp_seconds", float64(spikeDuration), eventName)
 			}
 		}
 	}

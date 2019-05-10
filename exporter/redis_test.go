@@ -897,10 +897,11 @@ func TestHTTPEndpoint(t *testing.T) {
 
 		"db_keys",
 		"db_avg_ttl_seconds",
-		"used_cpu_sys",
-		"loading_dump_file", // testing renames
-		"config_maxmemory",  // testing config extraction
-		"config_maxclients", // testing config extraction
+		"cpu_sys_seconds_total",
+		"latest_fork_seconds", // testing special case unit conversion
+		"loading_dump_file",   // testing renames
+		"config_maxmemory",    // testing config extraction
+		"config_maxclients",   // testing config extraction
 		"slowlog_length",
 		"slowlog_last_id",
 		"start_time_seconds",
@@ -928,7 +929,7 @@ func TestIncludeSystemMemoryMetric(t *testing.T) {
 		prometheus.DefaultRegisterer = r
 
 		ts := httptest.NewServer(promhttp.Handler())
-		e, _ := NewRedisExporter(os.Getenv("TEST_REDIS_URI"), Options{Namespace: "test", IncludeMetricTotalSysMemory: inc})
+		e, _ := NewRedisExporter(os.Getenv("TEST_REDIS_URI"), Options{Namespace: "test", InclSystemMetrics: inc})
 
 		prometheus.Register(e)
 
@@ -974,7 +975,7 @@ func TestHTTPScrapeEndpoint(t *testing.T) {
 
 		"db_keys",
 		"db_avg_ttl_seconds",
-		"used_cpu_sys",
+		"cpu_sys_seconds_total",
 		"loading_dump_file", // testing renames
 		"config_maxmemory",  // testing config extraction
 		"config_maxclients", // testing config extraction
