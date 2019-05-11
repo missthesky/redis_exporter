@@ -469,17 +469,18 @@ func TestParseConnectedSlaveString(t *testing.T) {
 	}
 
 	for _, tst := range tsts {
-		if offset, ip, port, state, lag, ok := parseConnectedSlaveString(tst.k, tst.v); true {
-
-			if ok != tst.ok {
-				t.Errorf("failed for: db:%s stats:%s", tst.k, tst.v)
-				continue
+		name := fmt.Sprintf("%s---%s", tst.k, tst.v)
+		t.Run(name, func(t *testing.T) {
+			if offset, ip, port, state, lag, ok := parseConnectedSlaveString(tst.k, tst.v); true {
+				if ok != tst.ok {
+					t.Errorf("failed for: db:%s stats:%s", tst.k, tst.v)
+					return
+				}
+				if offset != tst.offset || ip != tst.ip || port != tst.port || state != tst.state || lag != tst.lag {
+					t.Errorf("values not matching, string:%s %f %s %s %s %f", tst.v, offset, ip, port, state, lag)
+				}
 			}
-
-			if offset != tst.offset || ip != tst.ip || port != tst.port || state != tst.state || lag != tst.lag {
-				t.Errorf("values not matching, string:%s %f %s %s %s %f", tst.v, offset, ip, port, state, lag)
-			}
-		}
+		})
 	}
 }
 
@@ -916,9 +917,11 @@ func TestHTTPEndpoint(t *testing.T) {
 		`test_db_keys_expiring{db="db11"} `,
 	}
 	for _, test := range tests {
-		if !strings.Contains(body, test) {
-			t.Errorf("want metrics to include %q, have:\n%s", test, body)
-		}
+		t.Run(test, func(t *testing.T) {
+			if !strings.Contains(body, test) {
+				t.Errorf("want metrics to include %q, have:\n%s", test, body)
+			}
+		})
 	}
 }
 

@@ -149,6 +149,11 @@ Password-protected instances can be accessed by using the URI format including a
 
 Command line settings take precedence over any configurations provided by the environment variables.
 
+### Scrape password-protected Redis instances
+
+The `--redis.addr` command line flag accepts a Redis URI which allows for passing a password like this:
+
+`redis_exporter --redis.addr=redis://h:<<PASSWORD>>@<<HOSTNAME>>:<<PORT>> `
 
 
 ### What's exported?
@@ -159,6 +164,7 @@ In addition, for every database there are metrics for total keys, expiring keys 
 You can also export values of keys if they're in numeric format by using the `-check-keys` flag. The exporter will also export the size (or, depending on the data type, the length) of the key. This can be used to export the number of elements in (sorted) sets, hashes, lists, streams, etc.
 
 If you require custom metric collection, you can provide a [Redis Lua script](https://redis.io/commands/eval) using the `-script` flag. An example can be found [in the contrib folder](./contrib/sample_collect_script.lua).
+
 
 ### What does it look like?
 
