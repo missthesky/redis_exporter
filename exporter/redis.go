@@ -271,27 +271,27 @@ func NewRedisExporter(redisURI string, opts Options) (*Exporter, error) {
 		txt  string
 		lbls []string
 	}{
-		"up":                                   {txt: "Information about the Redis instance"},
-		"instance_info":                        {txt: "Information about the Redis instance", lbls: []string{"role", "redis_version", "redis_build_id", "redis_mode", "os"}},
-		"exporter_last_scrape_error":           {txt: "The last scrape error status.", lbls: []string{"err"}},
-		"script_values":                        {txt: "Values returned by the collect script", lbls: []string{"key"}},
-		"key_value":                            {txt: `The value of "key"`, lbls: []string{"db", "key"}},
-		"key_size":                             {txt: `The length or size of "key"`, lbls: []string{"db", "key"}},
+		"commands_duration_seconds_total":      {txt: `Total amount of time in seconds spent per command`, lbls: []string{"cmd"}},
+		"commands_total":                       {txt: `Total number of calls per command`, lbls: []string{"cmd"}},
+		"connected_slave_lag_seconds":          {txt: "Lag of connected slave", lbls: []string{"slave_ip", "slave_port", "slave_state"}},
+		"connected_slave_offset_bytes":         {txt: "Offset of connected slave", lbls: []string{"slave_ip", "slave_port", "slave_state"}},
+		"db_avg_ttl_seconds":                   {txt: "Avg TTL in seconds", lbls: []string{"db"}},
 		"db_keys":                              {txt: "Total number of keys by DB", lbls: []string{"db"}},
 		"db_keys_expiring":                     {txt: "Total number of expiring keys by DB", lbls: []string{"db"}},
-		"db_avg_ttl_seconds":                   {txt: "Avg TTL in seconds", lbls: []string{"db"}},
+		"exporter_last_scrape_error":           {txt: "The last scrape error status.", lbls: []string{"err"}},
+		"instance_info":                        {txt: "Information about the Redis instance", lbls: []string{"role", "redis_version", "redis_build_id", "redis_mode", "os"}},
+		"key_size":                             {txt: `The length or size of "key"`, lbls: []string{"db", "key"}},
+		"key_value":                            {txt: `The value of "key"`, lbls: []string{"db", "key"}},
+		"last_slow_execution_duration_seconds": {txt: `The amount of time needed for last slow execution, in seconds`},
 		"latency_spike_last":                   {txt: `When the latency spike last occurred`, lbls: []string{"event_name"}},
 		"latency_spike_timestamp_seconds":      {txt: `Length of the last latency spike in seconds`, lbls: []string{"event_name"}},
-		"commands_total":                       {txt: `Total number of calls per command`, lbls: []string{"cmd"}},
-		"commands_duration_seconds_total":      {txt: `Total amount of time in seconds spent per command`, lbls: []string{"cmd"}},
-		"slowlog_length":                       {txt: `Total slowlog`},
-		"slowlog_last_id":                      {txt: `Last id of slowlog`},
-		"last_slow_execution_duration_seconds": {txt: `The amount of time needed for last slow execution, in seconds`},
-		"start_time_seconds":                   {txt: "Start time of the Redis instance since unix epoch in seconds."},
 		"master_link_up":                       {txt: "Master link status on Redis slave"},
-		"connected_slave_offset":               {txt: "Offset of connected slave", lbls: []string{"slave_ip", "slave_port", "slave_state"}},
-		"connected_slave_lag_seconds":          {txt: "Lag of connected slave", lbls: []string{"slave_ip", "slave_port", "slave_state"}},
+		"script_values":                        {txt: "Values returned by the collect script", lbls: []string{"key"}},
 		"slave_info":                           {txt: "Information about the Redis slave", lbls: []string{"master_host", "master_port", "read_only"}},
+		"slowlog_last_id":                      {txt: `Last id of slowlog`},
+		"slowlog_length":                       {txt: `Total slowlog`},
+		"start_time_seconds":                   {txt: "Start time of the Redis instance since unix epoch in seconds."},
+		"up":                                   {txt: "Information about the Redis instance"},
 	} {
 		e.metricDescriptions[k] = newMetricDescr(opts.Namespace, k, desc.txt, desc.lbls)
 	}
@@ -555,7 +555,7 @@ func (e *Exporter) handleMetricsReplication(ch chan<- prometheus.Metric, fieldKe
 	// not a slave, try extracting master metrics
 	if slaveOffset, slaveIP, slavePort, slaveState, slaveLag, ok := parseConnectedSlaveString(fieldKey, fieldValue); ok {
 		e.registerConstMetricGauge(ch,
-			"connected_slave_offset",
+			"connected_slave_offset_bytes",
 			slaveOffset,
 			slaveIP, slavePort, slaveState,
 		)
