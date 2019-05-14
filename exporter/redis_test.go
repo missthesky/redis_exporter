@@ -960,7 +960,7 @@ func TestHTTPEndpoints(t *testing.T) {
 				// labels and label values
 				`redis_mode`,
 				`standalone`,
-				`cmd="auth`,
+				`cmd="config`,
 
 				`test_key_size{db="db11",key="` + keys[0] + `"} 7`,
 				`test_key_value{db="db11",key="` + keys[0] + `"} 1234.56`,
