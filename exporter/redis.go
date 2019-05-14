@@ -47,6 +47,7 @@ type Exporter struct {
 }
 
 type Options struct {
+	Password            string
 	Namespace           string
 	ConfigCommandName   string
 	CheckSingleKeys     string
@@ -168,6 +169,17 @@ func (e *Exporter) ScrapeHandler(w http.ResponseWriter, r *http.Request) {
 		e.targetScrapeRequestErrors.Inc()
 		return
 	}
+
+	u, err := url.Parse(target)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Invalid 'target' parameter, parse err: %s ", err), 400)
+		e.targetScrapeRequestErrors.Inc()
+		return
+	}
+
+	// get rid of username/password info in "target" so users don't send them via http
+	u.User = nil
+	target = u.String()
 
 	checkKeys := r.URL.Query().Get("check-keys")
 	checkSingleKey := r.URL.Query().Get("check-single-keys")
@@ -932,7 +944,7 @@ func getKeysFromPatterns(c redis.Conn, keys []dbKeyPair) (expandedKeys []dbKeyPa
 	return expandedKeys, err
 }
 
-func connectToRedis(addr string, skipTLSVerification bool) (redis.Conn, error) {
+func (e *Exporter) connectToRedis(skipTLSVerification bool) (redis.Conn, error) {
 	options := []redis.DialOption{
 		redis.DialConnectTimeout(5 * time.Second),
 		redis.DialReadTimeout(5 * time.Second),
@@ -943,7 +955,11 @@ func connectToRedis(addr string, skipTLSVerification bool) (redis.Conn, error) {
 		}),
 	}
 
-	uri := addr
+	if e.options.Password != "" {
+		options = append(options, redis.DialPassword(e.options.Password))
+	}
+
+	uri := e.redisAddr
 	if !strings.Contains(uri, "://") {
 		uri = "redis://" + uri
 	}
@@ -951,19 +967,19 @@ func connectToRedis(addr string, skipTLSVerification bool) (redis.Conn, error) {
 	c, err := redis.DialURL(uri, options...)
 	if err != nil {
 		log.Debugf("DialURL() failed, err: %s", err)
-		if frags := strings.Split(addr, "://"); len(frags) == 2 {
+		if frags := strings.Split(e.redisAddr, "://"); len(frags) == 2 {
 			log.Debugf("Trying: Dial(): %s %s", frags[0], frags[1])
 			c, err = redis.Dial(frags[0], frags[1], options...)
 		} else {
-			log.Debugf("Trying: Dial(): tcp %s", addr)
-			c, err = redis.Dial("tcp", addr, options...)
+			log.Debugf("Trying: Dial(): tcp %s", e.redisAddr)
+			c, err = redis.Dial("tcp", e.redisAddr, options...)
 		}
 	}
 	return c, err
 }
 
 func (e *Exporter) scrapeRedisHost(ch chan<- prometheus.Metric) error {
-	c, err := connectToRedis(e.redisAddr, e.options.SkipTLSVerification)
+	c, err := e.connectToRedis(e.options.SkipTLSVerification)
 	if err != nil {
 		log.Errorf("Couldn't connect to redis instance")
 		log.Debugf("connectToRedis() err: %s", err)

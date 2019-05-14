@@ -132,6 +132,7 @@ redis_exporter container can access it:
 Name                | Environment Variable Name          | Description
 --------------------|------------------------------------|-----------------
 redis.addr          | REDIS_ADDR                         | Address of the redis instance, defaults to `redis://localhost:6379`.
+redis.password      | REDIS_PASSWORD                     | Password of the redis instance, defaults to `""` (no password).
 debug               | REDIS_EXPORTER_DEBUG               | Verbose debug output
 log-format          | REDIS_EXPORTER_LOG_FORMAT          | Log format, valid options are `txt` (default) and `json`.
 check-keys          | REDIS_EXPORTER_CHECK_KEYS          | Comma separated list of key patterns to export value and length/size, eg: `db3=user_count` will export key `user_count` from db `3`. db defaults to `0` if omitted. The key patterns specified with this flag will be found using [SCAN](https://redis.io/commands/scan).  Use this option if you need glob pattern matching; `check-single-keys` is faster for non-pattern keys.
