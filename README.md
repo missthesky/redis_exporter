@@ -2,10 +2,12 @@
 
 
 [![Build Status](https://cloud.drone.io/api/badges/oliver006/redis_exporter/status.svg)](https://cloud.drone.io/oliver006/redis_exporter)
- [![Coverage Status](https://coveralls.io/repos/github/oliver006/redis_exporter/badge.svg?branch=master)](https://coveralls.io/github/oliver006/redis_exporter?branch=master) [![codecov](https://codecov.io/gh/oliver006/redis_exporter/branch/master/graph/badge.svg)](https://codecov.io/gh/oliver006/redis_exporter)
+ [![Coverage Status](https://coveralls.io/repos/github/oliver006/redis_exporter/badge.svg?branch=master)](https://coveralls.io/github/oliver006/redis_exporter?branch=master) [![codecov](https://codecov.io/gh/oliver006/redis_exporter/branch/master/graph/badge.svg)](https://codecov.io/gh/oliver006/redis_exporter)  [![Coverage Status](https://coveralls.io/repos/github/oliver006/redis_exporter/badge.svg?branch=master)](https://coveralls.io/github/oliver006/redis_exporter?branch=master) [![docker_pulls](https://img.shields.io/docker/pulls/oliver006/redis_exporter.svg)](https://img.shields.io/docker/pulls/oliver006/redis_exporter.svg)
+
 
 Prometheus exporter for Redis metrics.\
 Supports Redis 2.x, 3.x, 4.x, and 5.x
+
 
 ## Building, configuring, and running
 
@@ -17,6 +19,7 @@ Supports Redis 2.x, 3.x, 4.x, and 5.x
     $ go build
     $ ./redis_exporter <flags>
 ```
+
 
 
 ### Basic Prometheus Configuration
@@ -32,6 +35,8 @@ scrape_configs:
 
 and adjust the host name accordingly.
 
+
+
 ### Prometheus Configuration to Scrape Several Hosts
 
 Run the exporter with the command line flag `--redis.addr=` so it won't try to scrape 
@@ -45,7 +50,7 @@ scrape_configs:
     static_configs:
       - targets:
         - redis://first-redis-host:6379
-        - redis://h:password@second-redis-host:6379
+        - redis://second-redis-host:6379
     metrics_path: /scrape
     relabel_configs:
       - source_labels: [__address__]
@@ -59,11 +64,13 @@ scrape_configs:
   - job_name: 'redis_exporter'
     static_configs:
       - targets:
-        -  <<REDIS-EXPORTER-HOSTNAME>>:9121
+        - <<REDIS-EXPORTER-HOSTNAME>>:9121
 ```
 
 The redis instances are listed under `targets`, the redis exporter hostname is configured via the last relabel_config rule.\
-
+If authentication is needed for the Redis instances then you can set the password via the `--redis.password` command line option of
+the exporter (this means you can currently only use one password across the instances you try to scrape this way. Use several 
+exporters if this is a problem). \
 You can also use a file supply multiple targets by using `file_sd_configs` like so:
 
 ```yaml
@@ -97,6 +104,7 @@ The `targets-redis-instances.json` should look something like this:
 Prometheus uses file watches and all changes to the json file are applied immediately.
 
 
+
 ### Run via Docker:
 
 The latest release is automatically published to the [Docker registry](https://hub.docker.com/r/oliver006/redis_exporter/).
@@ -120,6 +128,8 @@ redis_exporter container can access it:
 ```sh
     $ docker run -d --name redis_exporter --network host oliver006/redis_exporter
 ```
+
+
 
 ### Run on Kubernetes
 
@@ -151,11 +161,6 @@ Password-protected instances can be accessed by using the URI format including a
 
 Command line settings take precedence over any configurations provided by the environment variables.
 
-### Scrape password-protected Redis instances
-
-The `--redis.addr` command line flag accepts a Redis URI which allows for passing a password like this:
-
-`redis_exporter --redis.addr=redis://h:<<PASSWORD>>@<<HOSTNAME>>:<<PORT>> `
 
 
 ### What's exported?
@@ -168,6 +173,7 @@ You can also export values of keys if they're in numeric format by using the `-c
 If you require custom metric collection, you can provide a [Redis Lua script](https://redis.io/commands/eval) using the `-script` flag. An example can be found [in the contrib folder](./contrib/sample_collect_script.lua).
 
 
+
 ### What does it look like?
 
 Example [Grafana](http://grafana.org/) screenshots:\
@@ -176,6 +182,8 @@ Example [Grafana](http://grafana.org/) screenshots:\
 
 Grafana dashboard is available on [grafana.net](https://grafana.net/dashboards/763) and/or [github.com](contrib/grafana_prometheus_redis_dashboard.json).
 
+
+
 ### What else?
 
-Open an issue or PR if you have more suggestions or ideas about what to add.
+Open an issue or PR if you have more suggestions, questions or ideas about what to add.
