@@ -141,7 +141,8 @@ script              | REDIS_EXPORTER_SCRIPT              | Path to Redis Lua scr
 namespace           | REDIS_EXPORTER_NAMESPACE           | Namespace for the metrics, defaults to `redis`.
 web.listen-address  | REDIS_EXPORTER_WEB_LISTEN_ADDRESS  | Address to listen on for web interface and telemetry, defaults to `0.0.0.0:9121`.
 web.telemetry-path  | REDIS_EXPORTER_WEB_TELEMETRY_PATH  | Path under which to expose metrics, defaults to `/metrics`.
-redis-only-metrics  | REDIS_EXPORTER_REDIS_ONLY_METRICS  | Whether to also export go runtime metrics
+redis-only-metrics  | REDIS_EXPORTER_REDIS_ONLY_METRICS  | Whether to also export go runtime metrics, defaults to false.
+is-tile38           | REDIS_EXPORTER_IS_TILE38           | Whether to scrape Tile38 specific metrics, defaults to false.
 
 
 Redis instance addresses can be tcp addresses: `redis://localhost:6379`, `redis.example.com:6379` or e.g. unix sockets: `unix:///tmp/redis.sock`.\
