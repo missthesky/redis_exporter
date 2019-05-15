@@ -54,6 +54,7 @@ type Options struct {
 	CheckKeys           string
 	InclSystemMetrics   bool
 	SkipTLSVerification bool
+	IsTile38            bool
 }
 
 var (
@@ -506,21 +507,6 @@ func (e *Exporter) registerConstMetric(ch chan<- prometheus.Metric, metric strin
 	ch <- prometheus.MustNewConstMetric(descr, valType, val, labelValues...)
 }
 
-func (e *Exporter) extractTile38Metrics(ch chan<- prometheus.Metric, info []string) {
-	for i := 0; i < len(info); i += 2 {
-		log.Debugf("tile38: %s:%s", info[i], info[i+1])
-
-		fieldKey := info[i]
-		fieldValue := info[i+1]
-
-		if !includeMetric(fieldKey) {
-			continue
-		}
-
-		e.parseAndRegisterConstMetric(ch, fieldKey, fieldValue)
-	}
-}
-
 func (e *Exporter) handleMetricsCommandStats(ch chan<- prometheus.Metric, fieldKey string, fieldValue string) {
 	/*
 		Format:
@@ -792,6 +778,42 @@ func (e *Exporter) extractSlowLogMetrics(ch chan<- prometheus.Metric, c redis.Co
 	}
 }
 
+func (e *Exporter) extractLatencyMetrics(ch chan<- prometheus.Metric, c redis.Conn) {
+	if reply, err := doRedisCmd(c, "LATENCY", "LATEST"); err == nil {
+		var eventName string
+		if tempVal, _ := reply.([]interface{}); len(tempVal) > 0 {
+			latencyResult := tempVal[0].([]interface{})
+			var spikeLast, spikeDuration, max int64
+			if _, err := redis.Scan(latencyResult, &eventName, &spikeLast, &spikeDuration, &max); err == nil {
+				spikeDuration = spikeDuration / 1e6
+				e.registerConstMetricGauge(ch, "latency_spike_last", float64(spikeLast), eventName)
+				e.registerConstMetricGauge(ch, "latency_spike_timestamp_seconds", float64(spikeDuration), eventName)
+			}
+		}
+	}
+}
+
+func (e *Exporter) extractTile38Metrics(ch chan<- prometheus.Metric, c redis.Conn) {
+	info, err := redis.Strings(doRedisCmd(c, "SERVER"))
+	if err != nil {
+		log.Errorf("extractTile38Metrics() err: %s", err)
+		return
+	}
+
+	for i := 0; i < len(info); i += 2 {
+		log.Debugf("tile38: %s:%s", info[i], info[i+1])
+
+		fieldKey := info[i]
+		fieldValue := info[i+1]
+
+		if !includeMetric(fieldKey) {
+			continue
+		}
+
+		e.parseAndRegisterConstMetric(ch, fieldKey, fieldValue)
+	}
+}
+
 func (e *Exporter) parseAndRegisterConstMetric(ch chan<- prometheus.Metric, fieldKey, fieldValue string) error {
 	orgMetricName := sanitizeMetricName(fieldKey)
 	metricName := orgMetricName
@@ -1028,32 +1050,17 @@ func (e *Exporter) scrapeRedisHost(ch chan<- prometheus.Metric) error {
 
 	e.extractInfoMetrics(ch, infoAll, dbCount)
 
-	// SERVER command only works on tile38 database. check the following link to
-	// find out more: https://tile38.com/
-	if serverInfo, err := redis.Strings(doRedisCmd(c, "SERVER")); err == nil {
-		e.extractTile38Metrics(ch, serverInfo)
-	} else {
-		log.Debugf("Tile38 SERVER err: %s", err)
-	}
-
-	if reply, err := doRedisCmd(c, "LATENCY", "LATEST"); err == nil {
-		var eventName string
-		if tempVal, _ := reply.([]interface{}); len(tempVal) > 0 {
-			latencyResult := tempVal[0].([]interface{})
-			var spikeLast, spikeDuration, max int64
-			if _, err := redis.Scan(latencyResult, &eventName, &spikeLast, &spikeDuration, &max); err == nil {
-				spikeDuration = spikeDuration / 1e6
-				e.registerConstMetricGauge(ch, "latency_spike_last", float64(spikeLast), eventName)
-				e.registerConstMetricGauge(ch, "latency_spike_timestamp_seconds", float64(spikeDuration), eventName)
-			}
-		}
-	}
+	e.extractLatencyMetrics(ch, c)
 
 	e.extractCheckKeyMetrics(ch, c)
 
 	e.extractLuaScriptMetrics(ch, c)
 
 	e.extractSlowLogMetrics(ch, c)
+
+	if e.options.IsTile38 {
+		e.extractTile38Metrics(ch, c)
+	}
 
 	log.Debugf("scrapeRedisHost() done")
 	return nil
