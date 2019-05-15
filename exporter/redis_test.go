@@ -212,24 +212,28 @@ func TestTile38(t *testing.T) {
 		t.Skipf("TEST_TILE38_URI not set - skipping")
 	}
 
-	e, _ := NewRedisExporter(os.Getenv("TEST_TILE38_URI"), Options{Namespace: "test"})
+	for _, isTile38 := range []bool{true, false} {
+		e, _ := NewRedisExporter(os.Getenv("TEST_TILE38_URI"), Options{Namespace: "test", IsTile38: isTile38})
 
-	chM := make(chan prometheus.Metric)
-	go func() {
-		e.Collect(chM)
-		close(chM)
-	}()
+		chM := make(chan prometheus.Metric)
+		go func() {
+			e.Collect(chM)
+			close(chM)
+		}()
 
-	found := false
-	for m := range chM {
-		if strings.Contains(m.Desc().String(), "cpus_total") {
-			found = true
-			log.Debugf("type: %T", m)
+		found := false
+		for m := range chM {
+			if strings.Contains(m.Desc().String(), "cpus_total") {
+				found = true
+				break
+			}
 		}
 
-	}
-	if !found {
-		t.Errorf("cpus_total was not found in tile38 metrics")
+		if isTile38 && !found {
+			t.Errorf("cpus_total was *not* found in tile38 metrics but expected")
+		} else if !isTile38 && found {
+			t.Errorf("cpus_total was *found* in tile38 metrics but *not* expected")
+		}
 	}
 }
 
