@@ -2,7 +2,7 @@
 
 
 [![Build Status](https://cloud.drone.io/api/badges/oliver006/redis_exporter/status.svg)](https://cloud.drone.io/oliver006/redis_exporter)
- [![Coverage Status](https://coveralls.io/repos/github/oliver006/redis_exporter/badge.svg?branch=master)](https://coveralls.io/github/oliver006/redis_exporter?branch=master) [![codecov](https://codecov.io/gh/oliver006/redis_exporter/branch/master/graph/badge.svg)](https://codecov.io/gh/oliver006/redis_exporter)  [![Coverage Status](https://coveralls.io/repos/github/oliver006/redis_exporter/badge.svg?branch=master)](https://coveralls.io/github/oliver006/redis_exporter?branch=master) [![docker_pulls](https://img.shields.io/docker/pulls/oliver006/redis_exporter.svg)](https://img.shields.io/docker/pulls/oliver006/redis_exporter.svg)
+ [![Coverage Status](https://coveralls.io/repos/github/oliver006/redis_exporter/badge.svg?branch=master)](https://coveralls.io/github/oliver006/redis_exporter?branch=master) [![codecov](https://codecov.io/gh/oliver006/redis_exporter/branch/master/graph/badge.svg)](https://codecov.io/gh/oliver006/redis_exporter) [![docker_pulls](https://img.shields.io/docker/pulls/oliver006/redis_exporter.svg)](https://img.shields.io/docker/pulls/oliver006/redis_exporter.svg)
 
 
 Prometheus exporter for Redis metrics.\
@@ -39,13 +39,13 @@ and adjust the host name accordingly.
 
 ### Prometheus Configuration to Scrape Several Hosts
 
-Run the exporter with the command line flag `--redis.addr=` so it won't try to scrape 
-the local instance when the `/metrics` endpoint is hit.
+Run the exporter with the command line flag `--redis.addr=` so it won't try to access 
+the local instance every time the `/metrics` endpoint is scraped.
 
 ```yaml
 
 scrape_configs:
-  ## config for the multiple redis targets that the exporter will scrape
+  ## config for the multiple Redis targets that the exporter will scrape
   - job_name: 'redis_exporter_targets'
     static_configs:
       - targets:
@@ -67,7 +67,7 @@ scrape_configs:
         - <<REDIS-EXPORTER-HOSTNAME>>:9121
 ```
 
-The redis instances are listed under `targets`, the redis exporter hostname is configured via the last relabel_config rule.\
+The Redis instances are listed under `targets`, the Redis exporter hostname is configured via the last relabel_config rule.\
 If authentication is needed for the Redis instances then you can set the password via the `--redis.password` command line option of
 the exporter (this means you can currently only use one password across the instances you try to scrape this way. Use several 
 exporters if this is a problem). \
@@ -122,7 +122,7 @@ in an image that has a shell, etc then you can run the `alpine` image:
     $ docker run -d --name redis_exporter -p 9121:9121 oliver006/redis_exporter:alpine
 ```
 
-If you try to access a redis instance running on the host node, you'll need to add `--network host` so the
+If you try to access a Redis instance running on the host node, you'll need to add `--network host` so the
 redis_exporter container can access it:
 
 ```sh
@@ -139,21 +139,21 @@ redis_exporter container can access it:
 
 ### Flags
 
-Name                | Environment Variable Name          | Description
---------------------|------------------------------------|-----------------
-redis.addr          | REDIS_ADDR                         | Address of the redis instance, defaults to `redis://localhost:6379`.
-redis.password      | REDIS_PASSWORD                     | Password of the redis instance, defaults to `""` (no password).
-debug               | REDIS_EXPORTER_DEBUG               | Verbose debug output
-log-format          | REDIS_EXPORTER_LOG_FORMAT          | Log format, valid options are `txt` (default) and `json`.
-check-keys          | REDIS_EXPORTER_CHECK_KEYS          | Comma separated list of key patterns to export value and length/size, eg: `db3=user_count` will export key `user_count` from db `3`. db defaults to `0` if omitted. The key patterns specified with this flag will be found using [SCAN](https://redis.io/commands/scan).  Use this option if you need glob pattern matching; `check-single-keys` is faster for non-pattern keys.
-check-single-keys   | REDIS_EXPORTER_CHECK_SINGLE_KEYS   | Comma separated list of keys to export value and length/size, eg: `db3=user_count` will export key `user_count` from db `3`. db defaults to `0` if omitted.  The keys specified with this flag will be looked up directly without any glob pattern matching.  Use this option if you don't need glob pattern matching;  it is faster than `check-keys`.
-script              | REDIS_EXPORTER_SCRIPT              | Path to Redis Lua script for gathering extra metrics.
-namespace           | REDIS_EXPORTER_NAMESPACE           | Namespace for the metrics, defaults to `redis`.
-web.listen-address  | REDIS_EXPORTER_WEB_LISTEN_ADDRESS  | Address to listen on for web interface and telemetry, defaults to `0.0.0.0:9121`.
-web.telemetry-path  | REDIS_EXPORTER_WEB_TELEMETRY_PATH  | Path under which to expose metrics, defaults to `/metrics`.
-redis-only-metrics  | REDIS_EXPORTER_REDIS_ONLY_METRICS  | Whether to also export go runtime metrics, defaults to false.
-is-tile38           | REDIS_EXPORTER_IS_TILE38           | Whether to scrape Tile38 specific metrics, defaults to false.
-
+Name                   | Environment Variable Name          | Description
+-----------------------|------------------------------------|-----------------
+redis.addr             | REDIS_ADDR                         | Address of the Redis instance, defaults to `redis://localhost:6379`.
+redis.password         | REDIS_PASSWORD                     | Password of the Redis instance, defaults to `""` (no password).
+check-keys             | REDIS_EXPORTER_CHECK_KEYS          | Comma separated list of key patterns to export value and length/size, eg: `db3=user_count` will export key `user_count` from db `3`. db defaults to `0` if omitted. The key patterns specified with this flag will be found using [SCAN](https://redis.io/commands/scan).  Use this option if you need glob pattern matching; `check-single-keys` is faster for non-pattern keys.
+check-single-keys      | REDIS_EXPORTER_CHECK_SINGLE_KEYS   | Comma separated list of keys to export value and length/size, eg: `db3=user_count` will export key `user_count` from db `3`. db defaults to `0` if omitted.  The keys specified with this flag will be looked up directly without any glob pattern matching.  Use this option if you don't need glob pattern matching;  it is faster than `check-keys`.
+script                 | REDIS_EXPORTER_SCRIPT              | Path to Redis Lua script for gathering extra metrics.
+debug                  | REDIS_EXPORTER_DEBUG               | Verbose debug output
+log-format             | REDIS_EXPORTER_LOG_FORMAT          | Log format, valid options are `txt` (default) and `json`.
+namespace              | REDIS_EXPORTER_NAMESPACE           | Namespace for the metrics, defaults to `redis`.
+web.listen-address     | REDIS_EXPORTER_WEB_LISTEN_ADDRESS  | Address to listen on for web interface and telemetry, defaults to `0.0.0.0:9121`.
+web.telemetry-path     | REDIS_EXPORTER_WEB_TELEMETRY_PATH  | Path under which to expose metrics, defaults to `/metrics`.
+redis-only-metrics     | REDIS_EXPORTER_REDIS_ONLY_METRICS  | Whether to also export go runtime metrics, defaults to false.
+include-system-metrics | REDIS_EXPORTER_IS_TILE38           | Whether to include system metrics like `total_system_memory_bytes`, defaults to false.
+is-tile38              | REDIS_EXPORTER_IS_TILE38           | Whether to scrape Tile38 specific metrics, defaults to false.
 
 Redis instance addresses can be tcp addresses: `redis://localhost:6379`, `redis.example.com:6379` or e.g. unix sockets: `unix:///tmp/redis.sock`.\
 SSL is supported by using the `rediss://` schema, for example: `rediss://azure-ssl-enabled-host.redis.cache.windows.net:6380` (note that the port is required when connecting to a non-standard 6379 port, e.g. with Azure Redis instances).\
