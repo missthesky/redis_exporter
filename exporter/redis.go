@@ -55,6 +55,7 @@ type Options struct {
 	InclSystemMetrics   bool
 	SkipTLSVerification bool
 	IsTile38            bool
+	ConnectionTimeouts  time.Duration
 }
 
 var (
@@ -968,9 +969,9 @@ func getKeysFromPatterns(c redis.Conn, keys []dbKeyPair) (expandedKeys []dbKeyPa
 
 func (e *Exporter) connectToRedis(skipTLSVerification bool) (redis.Conn, error) {
 	options := []redis.DialOption{
-		redis.DialConnectTimeout(5 * time.Second),
-		redis.DialReadTimeout(5 * time.Second),
-		redis.DialWriteTimeout(5 * time.Second),
+		redis.DialConnectTimeout(e.options.ConnectionTimeouts),
+		redis.DialReadTimeout(e.options.ConnectionTimeouts),
+		redis.DialWriteTimeout(e.options.ConnectionTimeouts),
 
 		redis.DialTLSConfig(&tls.Config{
 			InsecureSkipVerify: skipTLSVerification,

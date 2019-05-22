@@ -149,6 +149,7 @@ script                 | REDIS_EXPORTER_SCRIPT              | Path to Redis Lua 
 debug                  | REDIS_EXPORTER_DEBUG               | Verbose debug output
 log-format             | REDIS_EXPORTER_LOG_FORMAT          | Log format, valid options are `txt` (default) and `json`.
 namespace              | REDIS_EXPORTER_NAMESPACE           | Namespace for the metrics, defaults to `redis`.
+connection-timeout     | REDIS_EXPORTER_CONNECTION_TIMEOUT  | Timeout for connection to Redis instance, defaults to "15s" (in Golang duration format)
 web.listen-address     | REDIS_EXPORTER_WEB_LISTEN_ADDRESS  | Address to listen on for web interface and telemetry, defaults to `0.0.0.0:9121`.
 web.telemetry-path     | REDIS_EXPORTER_WEB_TELEMETRY_PATH  | Path under which to expose metrics, defaults to `/metrics`.
 redis-only-metrics     | REDIS_EXPORTER_REDIS_ONLY_METRICS  | Whether to also export go runtime metrics, defaults to false.
