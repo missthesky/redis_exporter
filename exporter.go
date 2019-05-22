@@ -1,4 +1,4 @@
-package exporter
+package main
 
 import (
 	"crypto/tls"
@@ -42,11 +42,11 @@ type Exporter struct {
 
 	metricDescriptions map[string]*prometheus.Desc
 
-	options   Options
+	options   ExporterOptions
 	LuaScript []byte
 }
 
-type Options struct {
+type ExporterOptions struct {
 	Password            string
 	Namespace           string
 	ConfigCommandName   string
@@ -235,7 +235,7 @@ func newMetricDescr(namespace string, metricName string, docString string, label
 }
 
 // NewRedisExporter returns a new exporter of Redis metrics.
-func NewRedisExporter(redisURI string, opts Options) (*Exporter, error) {
+func NewRedisExporter(redisURI string, opts ExporterOptions) (*Exporter, error) {
 	e := Exporter{
 		redisAddr: redisURI,
 		options:   opts,

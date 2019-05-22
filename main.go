@@ -9,7 +9,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/oliver006/redis_exporter/exporter"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	log "github.com/sirupsen/logrus"
@@ -83,9 +82,9 @@ func main() {
 		log.Fatalf("Couldn't parse connection timeout duration, err: %s", err)
 	}
 
-	exp, err := exporter.NewRedisExporter(
+	exp, err := NewRedisExporter(
 		*redisAddr,
-		exporter.Options{
+		ExporterOptions{
 			Password:           *redisPwd,
 			Namespace:          *namespace,
 			ConfigCommandName:  *configCommand,

@@ -48,12 +48,11 @@ steps:
     commands:
       - 'go build -mod=vendor'
       - "sleep 10"   # let the redis test instances all come up first
-      - 'go test -mod=vendor -v -covermode=atomic -cover -race -coverprofile=coverage.txt ./exporter/...'
+      - 'go test -mod=vendor -v -covermode=atomic -cover -race -coverprofile=coverage.txt .'
       - 'echo "checking gofmt"'
-      - 'echo " ! gofmt -d main.go       2>&1 | read " | bash'
-      - 'echo " ! gofmt -d exporter/*.go 2>&1 | read " | bash'
+      - 'echo " ! gofmt -d *.go       2>&1 | read " | bash'
       - 'echo "checking gofmt - DONE"'
-      - 'go vet ./exporter/...'
+      - 'go vet .'
       - 'go get github.com/mattn/goveralls'
       - '/go/bin/goveralls -coverprofile=coverage.txt -service=drone.io'
     when:
