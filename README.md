@@ -11,16 +11,13 @@ Supports Redis 2.x, 3.x, 4.x, and 5.x
 
 ## Building, configuring, and running
 
-### Upgrading from v0.x to v1.x ?
+### Upgrading from 0.x to 1.x ?
 
 [PR #256](https://github.com/oliver006/redis_exporter/pull/256) introduced breaking changes which were released as version v1.0.0.
 
-If you only scrape one Redis instance and only use command line flags `--redis.address`
-and `--redis.password` to configure access to the Redis instance then you're most probably not affected by these changes.
-
-Please have a look at that PR for information on how to upgrade your configuration from version 0.x of the exporter to 1.x.
-
-For instance, if you want to scrape multiple Redis instances then [see here for an example](https://github.com/oliver006/redis_exporter/blob/master/README.md#prometheus-configuration-to-scrape-several-hosts).
+If you only scrape one Redis instance and use command line flags `--redis.address`
+and `--redis.password` then you're most probably not affected.
+Otherwise, please see [PR #256](https://github.com/oliver006/redis_exporter/pull/256) and this README for more information.
 
 
 
